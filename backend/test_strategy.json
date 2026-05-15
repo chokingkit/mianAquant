@@ -1,0 +1,9 @@
+{
+  "name": "测试MA策略",
+  "strategy_type": "ma_cross",
+  "parameters": {
+    "short_window": 5,
+    "long_window": 20
+  },
+  "is_active": true
+}

@@ -1,0 +1,28 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#ffcccc','secondaryColor':'#ffffcc','tertiaryColor':'#ccffcc'}} }%%
+
+sequenceDiagram
+    participant Admin as 管理员
+    participant Config as Config File
+    participant Factory as DataProviderFactory
+    participant OldProvider as OldDataProvider
+    participant NewProvider as NewDataProvider
+    participant Service as DataService
+    
+    Admin->>Config: update config.yaml
+    Note over Admin,Config: data_provider: "akshare"<br/># was "tushare"
+    
+    Config->>Factory: reload_config()
+    
+    Factory->>Factory: create_provider("akshare")
+    Factory->>NewProvider: __init__(config)
+    NewProvider-->>Factory: return instance
+    
+    Factory->>Service: set_provider(new_provider)
+    
+    opt 可选：数据迁移
+        Service->>OldProvider: export_data()
+        OldProvider-->>Service: return data
+        Service->>NewProvider: import_data(data)
+    end
+    
+    note over Service,NewProvider "业务代码无需修改<br/>仅通过配置切换数据源"

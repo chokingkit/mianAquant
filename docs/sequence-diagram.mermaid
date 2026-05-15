@@ -1,0 +1,41 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#ffcccc','secondaryColor':'#ffffcc','tertiaryColor':'#ccffcc'}} }%%
+
+sequenceDiagram
+    participant User as 用户/前端
+    participant API as FastAPI Endpoint
+    participant Service as DataService
+    participant Cache as DataCacheManager
+    participant Provider as DataProvider
+    participant Qlib as QlibDataConverter
+    participant DB as qlib Datalog
+    
+    User->>API: GET /api/v1/stocks/{code}/daily?start=2024-01-01&end=2024-12-31
+    API->>Service: get_stock_daily(code, start, end)
+    
+    alt 检查缓存
+        Service->>Cache: get(cache_key)
+        Cache-->>Service: cached_data or None
+        
+        alt 缓存命中
+            Service-->>API: return cached_data
+            API-->>User: return JSON response
+        else 缓存未命中
+            Service->>Provider: get_stock_daily(code, start, end)
+            Provider->>Provider: validate_stock_code(code)
+            Provider->>Provider: fetch from external API
+            Provider-->>Service: return DataFrame
+            
+            Service->>Service: validate_data(df)
+            Service->>Cache: set(cache_key, df, ttl=3600)
+            
+            opt 保存到qlib格式
+                Service->>Qlib: convert_to_qlib_format(df)
+                Qlib->>DB: save_to_qlib_data(df, code)
+            end
+            
+            Service-->>API: return df
+            API-->>User: return JSON response
+        end
+    end
+    
+    note over Service,Provider "数据源可随时切换<br/>通过DataProviderFactory创建"

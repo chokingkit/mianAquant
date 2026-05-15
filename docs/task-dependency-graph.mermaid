@@ -1,0 +1,16 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#ffcccc','secondaryColor':'#ffffcc','tertiaryColor':'#ccffcc'}} }%%
+
+graph TD
+    T01[T01: 项目基础设施<br/>配置 + 入口文件] --> T02[T02: 数据源抽象层<br/>A股适配]
+    T01 --> T03[T03: 策略引擎 + 回测框架<br/>A股规则实现]
+    T02 --> T03
+    T02 --> T04[T04: Web UI 界面<br/>状态管理]
+    T03 --> T04
+    T03 --> T05[T05: 风险管理 + 异步任务<br/>数据缓存优化]
+    T04 --> T05
+    
+    style T01 fill:#90EE90
+    style T02 fill:#87CEEB
+    style T03 fill:#FFD700
+    style T04 fill:#FFA07A
+    style T05 fill:#DDA0DD

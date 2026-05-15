@@ -1,0 +1,49 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#ffcccc','secondaryColor':'#ffffcc','tertiaryColor':'#ccffcc'}} }%%
+
+sequenceDiagram
+    participant User as 用户
+    participant API as FastAPI
+    participant Engine as BacktestEngine
+    participant Strategy as BaseStrategy
+    participant Rules as AShareTradingRules
+    participant Data as DataService
+    participant Portfolio as Portfolio
+    participant Risk as RiskManager
+    
+    User->>API: POST /api/v1/backtest/run
+    Note over User,API: {strategy: "MAStrategy", params: {...}, start: date, end: date}
+    
+    API->>Engine: run_backtest(strategy_config)
+    
+    Engine->>Engine: initialize backtest
+    Engine->>Strategy: initialize(context)
+    
+    loop 每个交易日
+        Engine->>Data: get_stock_data(codes, date)
+        Data-->>Engine: return market data
+        
+        Engine->>Strategy: handle_data(context, data)
+        Strategy->>Strategy: generate_signals(data)
+        Strategy-->>Engine: return signals
+        
+        alt 有交易信号
+            Engine->>Rules: validate_order(order)
+            Rules-->>Engine: (is_valid, message)
+            
+            if is_valid
+                Engine->>Portfolio: execute_order(order)
+                Engine->>Risk: check_post_trade(portfolio)
+                Risk-->>Engine: alerts
+            end
+        end
+        
+        Engine->>Portfolio: mark_to_market(data)
+    end
+    
+    Engine->>Engine: calculate_returns()
+    Engine->>Engine: generate_report()
+    
+    Engine-->>API: return BacktestResult
+    API-->>User: return JSON response
+    
+    note over Engine,Rules "严格遵守A股规则<br/>T+1、涨跌停、限仓"

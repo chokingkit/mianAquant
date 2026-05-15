@@ -1,0 +1,124 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#ffcccc','secondaryColor':'#ffffcc','tertiaryColor':'#ccffcc'}} }%%
+
+classDiagram
+    %% 数据源抽象层
+    class DataProvider {
+        <<interface>>
+        +provider_name: str
+        +token: str
+        +timeout: int
+        +initialize(token: str): bool
+        +get_stock_list() List~StockInfo~
+        +get_stock_daily(stock_code: str, start: date, end: date) DataFrame
+        +get_stock_realtime(stock_code: str) Dict
+        +get_financial_data(stock_code: str) DataFrame
+        +get_trading_calendar(start: date, end: date) List~date~
+        +validate_connection() bool
+    }
+    
+    class BaseDataProvider {
+        <<abstract>>
+        #_cache: Dict
+        #_session: requests.Session
+        #_validate_response(response) bool
+        #_handle_rate_limit()
+        #_cache_data(key: str, data: Any)
+        #_get_cached_data(key: str) Any
+    }
+    
+    class TushareProvider {
+        -_api: TushareAPI
+        +get_stock_list() List~StockInfo~
+        +get_stock_daily(stock_code: str, start: date, end: date) DataFrame
+        +get_stock_realtime(stock_code: str) Dict
+        -_convert_tushare_code(code: str) str
+        -_normalize_data(df: DataFrame) DataFrame
+    }
+    
+    class AKShareProvider {
+        +get_stock_list() List~StockInfo~
+        +get_stock_daily(stock_code: str, start: date, end: date) DataFrame
+        +get_stock_realtime(stock_code: str) Dict
+        -_normalize_akshare_data(df: DataFrame) DataFrame
+    }
+    
+    class CustomProvider {
+        +config: Dict
+        +get_stock_list() List~StockInfo~
+        +get_stock_daily(stock_code: str, start: date, end: date) DataFrame
+        +load_custom_data(source_path: str)
+    }
+    
+    %% 工厂和管理器
+    class DataProviderFactory {
+        <<Singleton>>
+        -_providers: Dict~str, type~
+        -_instances: Dict~str, DataProvider~
+        +register_provider(name: str, provider_class: type)
+        +create_provider(name: str, config: Dict) DataProvider
+        +get_provider(name: str) DataProvider
+        +list_providers() List~str~
+    }
+    
+    class DataCacheManager {
+        -_redis_client: redis.Redis
+        -_local_cache: Dict
+        -_cache_ttl: int
+        +get(cache_key: str) Any
+        +set(cache_key: str, data: Any, ttl: int)
+        +invalidate(pattern: str)
+        +clear_all()
+    }
+    
+    class DataQualityValidator {
+        +validate_dataframe(df: DataFrame, schema: Dict) Tuple~bool, List~
+        +check_missing_values(df: DataFrame) Dict~str, int~
+        +check_outliers(df: DataFrame, column: str) List~int~
+        +validate_stock_code(code: str) bool
+    }
+    
+    %% 数据服务层
+    class DataService {
+        -_provider: DataProvider
+        -_cache_manager: DataCacheManager
+        -_validator: DataQualityValidator
+        +set_provider(provider: DataProvider)
+        +get_stock_data(stock_code: str, start: date, end: date) DataFrame
+        +get_batch_stock_data(stock_codes: List, start: date, end: date) Dict
+        +invalidate_cache(stock_code: str)
+    }
+    
+    %% qlib 集成
+    class QlibDataConverter {
+        +convert_to_qlib_format(df: DataFrame, freq: str) DataFrame
+        +convert_from_qlib_format(qlib_df: DataFrame) DataFrame
+        +save_to_qlib_data(df: DataFrame, stock_code: str)
+        +load_from_qlib_data(stock_code: str, start: date, end: date) DataFrame
+    }
+    
+    class AShareCalendar {
+        -_calendar_data: List~date~
+        +is_trading_day(date: date) bool
+        +get_trading_days(start: date, end: date) List~date~
+        +get_next_trading_day(date: date) date
+        +get_previous_trading_day(date: date) date
+        -_load_calendar_from_provider()
+    }
+    
+    %% 关系定义
+    DataProvider <|.. BaseDataProvider : implements
+    BaseDataProvider <|-- TushareProvider : extends
+    BaseDataProvider <|-- AKShareProvider : extends
+    BaseDataProvider <|-- CustomProvider : extends
+    
+    DataProviderFactory --> DataProvider : creates
+    DataService --> DataProvider : uses
+    DataService --> DataCacheManager : uses
+    DataService --> DataQualityValidator : uses
+    
+    QlibDataConverter --> DataProvider : reads from
+    AShareCalendar --> DataProvider : fetches calendar
+    
+    note for DataProvider "统一数据接口\n所有数据源必须实现此接口"
+    note for DataProviderFactory "单例模式\n根据配置动态创建数据源"
+    note for DataService "业务逻辑层通过此类访问数据\n不直接依赖具体数据源"

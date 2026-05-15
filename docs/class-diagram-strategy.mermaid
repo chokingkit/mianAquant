@@ -1,0 +1,102 @@
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#ffcccc','secondaryColor':'#ffffcc','tertiaryColor':'#ccffcc'}} }%%
+
+classDiagram
+    %% 策略相关
+    class BaseStrategy {
+        <<abstract>>
+        +name: str
+        +parameters: Dict
+        +initialize(context)
+        +handle_data(context, data)
+        +generate_signals(context, data) Dict
+        +validate_parameters() bool
+    }
+    
+    class MAStrategy {
+        -short_window: int
+        -long_window: int
+        +initialize(context)
+        +handle_data(context, data)
+        +calculate_ma(prices: Series, window: int) Series
+    }
+    
+    class MACDStrategy {
+        -fast_period: int
+        -slow_period: int
+        -signal_period: int
+        +generate_signals(context, data) Dict
+        +calculate_macd(prices: Series) Tuple
+    }
+    
+    class StrategyEngine {
+        -_strategy: BaseStrategy
+        -_data_provider: DataProvider
+        +set_strategy(strategy: BaseStrategy)
+        +run_strategy(start: date, end: date) List~Signal~
+        +optimize_parameters(param_grid: Dict) Dict
+    }
+    
+    %% 回测相关
+    class BacktestEngine {
+        -_initial_cash: float
+        -_commission: float
+        -_slippage: float
+        -_rules: AShareTradingRules
+        +run_backtest(strategy: BaseStrategy, start: date, end: date) BacktestResult
+        +calculate_returns() DataFrame
+        +generate_report() Dict
+    }
+    
+    class AShareTradingRules {
+        <<Singleton>>
+        +apply_t_plus_one(signal_date: date, execution_date: date) bool
+        +apply_price_limit(order_price: float, prev_close: float, limit_pct: float) float
+        +check_position_limit(stock_code: str, position: float) bool
+        +validate_order(order: Order) Tuple~bool, str~
+    }
+    
+    class Order {
+        +stock_code: str
+        +direction: str
+        +quantity: int
+        +price: float
+        +order_type: str
+        +validate() bool
+    }
+    
+    class Portfolio {
+        -_positions: Dict~str, Position~
+        -_cash: float
+        +buy(stock_code: str, quantity: int, price: float)
+        +sell(stock_code: str, quantity: int, price: float)
+        +get_total_value() float
+        +get_positions() Dict
+    }
+    
+    %% 风险管理
+    class RiskManager {
+        -_max_position_size: float
+        -_max_loss_per_day: float
+        -_max_drawdown: float
+        +check_pre_trade(order: Order, portfolio: Portfolio) Tuple~bool, str~
+        +check_post_trade(portfolio: Portfolio) List~Alert~
+        +calculate_risk_metrics(returns: DataFrame) Dict
+    }
+    
+    %% 关系定义
+    BaseStrategy <|-- MAStrategy : extends
+    BaseStrategy <|-- MACDStrategy : extends
+    
+    StrategyEngine --> BaseStrategy : uses
+    StrategyEngine --> DataProvider : reads data
+    
+    BacktestEngine --> BaseStrategy : runs
+    BacktestEngine --> AShareTradingRules : applies
+    BacktestEngine --> Portfolio : manages
+    
+    AShareTradingRules --> AShareCalendar : checks trading days
+    
+    RiskManager --> Portfolio : monitors
+    
+    note for AShareTradingRules "实现A股特殊规则\nT+1、涨跌停、限仓等"
+    note for BacktestEngine "回测引擎核心\n支持A股规则回测"
